@@ -4,19 +4,27 @@ import SwiftUI
 final class DesktopWindow: NSWindow {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
+
+    // When a click arrives inside the window while it is not the key window,
+    // make it key so NSTextView can accept first-responder and the user can type.
+    override func mouseDown(with event: NSEvent) {
+        if !isKeyWindow { makeKey() }
+        super.mouseDown(with: event)
+    }
 }
 
 final class DesktopWindowController: NSWindowController, NSWindowDelegate {
     init(store: DesktopStore) {
         let frame = NSRect(x: 70, y: 90, width: 1080, height: 720)
         let window = DesktopWindow(contentRect: frame, styleMask: [.borderless, .resizable], backing: .buffered, defer: false)
-        // Set window level so it stays on the desktop (similar to widgets) and doesn't hide when clicking wallpaper or going to Stage Manager.
+        // desktopIconWindow+1 keeps us above Finder icons but below all normal app windows.
+        // This is the same level used by macOS widgets.
         window.level = NSWindow.Level(Int(CGWindowLevelForKey(.desktopIconWindow)) + 1)
         window.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .transient, .fullScreenAuxiliary]
         window.isOpaque = false
         window.backgroundColor = .clear
         window.hasShadow = false
-        window.isMovableByWindowBackground = true
+        window.isMovableByWindowBackground = false  // drag is handled by WindowDragStrip
         window.ignoresMouseEvents = false
         window.acceptsMouseMovedEvents = true
         window.hidesOnDeactivate = false
