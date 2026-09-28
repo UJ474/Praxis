@@ -8,8 +8,7 @@ import Setting from "./models/Setting.js";
 import newsletterRoutes from "./routes/newsletter.js";
 import taskRoutes from "./routes/tasks.js";
 import { encrypt } from "./services/security.js";
-import { startMondayReset } from "./jobs/mondayReset.js";
-import { startThursdayNewsletterRefresh } from "./jobs/thursdayNewsletterRefresh.js";
+
 
 const app = express();
 app.use(cors()); app.use(express.json());
@@ -28,7 +27,32 @@ app.get("/auth/google/callback", async (req, res, next) => { try {
   await Setting.findOneAndUpdate({ key: "googleRefreshToken" }, { value: encrypt(data.refresh_token) }, { upsert: true });
   res.type("html").send("<main style='font: 18px -apple-system; padding: 48px'>Gmail connected. You can close this window and choose Refresh from the 3-2-1 menu.</main>");
 } catch (error) { next(error); } });
+import { carryIncompleteTasks } from "./jobs/mondayReset.js";
+import { fetchAndStoreLatestNewsletter } from "./jobs/thursdayNewsletterRefresh.js";
+
+app.get("/api/cron/monday-reset", async (req, res, next) => {
+  if (req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) return res.status(401).json({ error: "Unauthorized" });
+  try { await carryIncompleteTasks(); res.json({ ok: true }); } catch (error) { next(error); }
+});
+
+app.get("/api/cron/thursday-refresh", async (req, res, next) => {
+  if (req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) return res.status(401).json({ error: "Unauthorized" });
+  try { await fetchAndStoreLatestNewsletter(); res.json({ ok: true }); } catch (error) { next(error); }
+});
+
 app.use("/api", authorized); app.use("/api/newsletter", newsletterRoutes); app.use("/api/tasks", taskRoutes);
 app.use((error, _req, res, _next) => { console.error(error); res.status(500).json({ error: error.message || "Server error" }); });
-await mongoose.connect(process.env.MONGODB_URI); startMondayReset(); startThursdayNewsletterRefresh();
-app.listen(process.env.PORT || 3000, () => console.log("3-2-1 API ready"));
+
+let isConnected = false;
+app.use(async (req, res, next) => {
+  if (!isConnected) { await mongoose.connect(process.env.MONGODB_URI); isConnected = true; }
+  next();
+});
+
+if (process.env.NODE_ENV !== "production") {
+  mongoose.connect(process.env.MONGODB_URI).then(() => {
+    app.listen(process.env.PORT || 3000, () => console.log("3-2-1 API ready"));
+  });
+}
+
+export default app;

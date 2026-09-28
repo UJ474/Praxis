@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/server.js"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/monday-reset",
+      "schedule": "5 0 * * 1"
+    },
+    {
+      "path": "/api/cron/thursday-refresh",
+      "schedule": "0 12 * * 4"
+    }
+  ]
+}
